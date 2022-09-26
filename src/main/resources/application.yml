@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/bp_db
+    username: root
+    password:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  hikari:
+    connectionTimeout: 30000
+    idleTimeout: 600000
+    maxLifetime: 1800000
+  jpa:
+   database-platform: org.hibernate.dialect.MySQLDialect
+    #database-platform: org.hibernate.dialect.Oracle9Dialect
+
+  batch:
+    initialize-schema: always
+    job:
+      enabled: false
+
+#      spring.batch.initializer.enabled=false
+#input=csv/member.csv
