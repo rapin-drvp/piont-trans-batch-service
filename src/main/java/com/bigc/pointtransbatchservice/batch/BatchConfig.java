@@ -1,8 +1,9 @@
 package com.bigc.pointtransbatchservice.batch;
 
-import com.bigc.pointtransbatchservice.datasource.entities.Member;
-import com.bigc.pointtransbatchservice.processor.MemberProcessor;
-import com.bigc.pointtransbatchservice.writer.MemberWriter;
+import com.bigc.pointtransbatchservice.common.utils.BatchDateUtil;
+import com.bigc.pointtransbatchservice.datasource.entities.PinMsgIn;
+import com.bigc.pointtransbatchservice.processor.PointTransProcessor;
+import com.bigc.pointtransbatchservice.writer.PointTransWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
@@ -22,6 +23,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import javax.persistence.EntityManagerFactory;
+import java.util.Date;
 
 @Slf4j
 @Configuration
@@ -34,31 +36,35 @@ public class BatchConfig {
     @Autowired
     private EntityManagerFactory entityManagerFactory;
 
+    @Autowired
+    private BatchDateUtil batchDateUtil;
+
     @Bean
     @StepScope
-    public ItemStreamReader<Member> itemReader(@Value("#{jobParameters['type']}") String type) throws Exception {
-        log.info("Job type: {}", type);
-        JpaPagingItemReader<Member> reader = new JpaPagingItemReader<>();
+    public ItemStreamReader<PinMsgIn> itemReader(@Value("#{jobParameters['type']}") String type) throws Exception {
+        JpaPagingItemReader<PinMsgIn> reader = new JpaPagingItemReader<>();
         reader.setEntityManagerFactory(entityManagerFactory);
-        reader.setQueryString("SELECT m FROM Member m");
+        reader.setQueryString(this.createQueryString());
         reader.setPageSize(100);
         reader.afterPropertiesSet();
         return reader;
     }
 
     @Bean
-    public ItemProcessor<Member, String> itemProcessor() {
-        return new MemberProcessor();
+    public ItemProcessor<PinMsgIn, Long> itemProcessor() {
+        return new PointTransProcessor();
     }
 
     @Bean
-    public ItemWriter<String> itemWriter() {
-        return new MemberWriter();
+    public ItemWriter<Long> itemWriter() {
+        return new PointTransWriter();
     }
 
     @Bean
-    public Step processLines(ItemReader<Member> reader, ItemProcessor<Member, String> processor, ItemWriter<String> writer) {
-        return this.stepBuilderFactory.get("processCardExp").<Member, String>chunk(100)
+    public Step processLines(ItemReader<PinMsgIn> reader,
+                             ItemProcessor<PinMsgIn, Long> processor,
+                             ItemWriter<Long> writer) {
+        return this.stepBuilderFactory.get("insertPointTransJob").<PinMsgIn, Long>chunk(100)
                 .reader(reader)
                 .processor(processor)
                 .writer(writer)
@@ -66,83 +72,18 @@ public class BatchConfig {
     }
 
     @Bean
-    @Qualifier("cardExpJob")
-    public Job cardExpJob() throws Exception {
-        return this.jobBuilderFactory.get("cardExpJob")
+    @Qualifier("insertPointTransJob")
+    public Job insertPointTransJob() throws Exception {
+        return this.jobBuilderFactory.get("insertPointTransJob")
                 .start(processLines(itemReader(null), itemProcessor(), itemWriter()))
                 .build();
     }
 
-    private String createQueryString() {
-        return String.format("SELECT m FROM Member");
+    private String createQueryString() throws Exception {
+        String createDate = batchDateUtil.getDateNowStr();
+        return String.format("SELECT pt FROM PinMsgIn pt\n" +
+                "WHERE pt.status ='SW'\n" +
+                "AND pt.msgType ='PT'\n" +
+                "AND TRUNC(pt.createDate) = TO_DATE('"+createDate+"','YYYY-MM-DD')");
     }
 }
-
-/*
-package com.bigc.pointtransbatchservice.batch;
-
-import com.bigc.pointtransbatchservice.Tasklet.CheckMemberTasklet;
-import com.bigc.pointtransbatchservice.listener.JobResultListener;
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
-import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
-import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
-import org.springframework.batch.core.job.builder.FlowBuilder;
-import org.springframework.batch.core.job.flow.Flow;
-import org.springframework.batch.core.job.flow.support.SimpleFlow;
-import org.springframework.batch.core.launch.support.RunIdIncrementer;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
-@EnableBatchProcessing
-@Configuration
-public class BatchConfig {
-    private JobBuilderFactory jobBuilderFactory;
-    private StepBuilderFactory stepBuilderFactory;
-    private JobResultListener jobResultListener;
-    private CheckMemberTasklet checkMemberTasklet;
-
-    public BatchConfig(JobBuilderFactory jobBuilderFactory, StepBuilderFactory stepBuilderFactory,
-                       JobResultListener jobResultListener, CheckMemberTasklet checkMemberTasklet
-                       )
-    {
-        this.jobBuilderFactory = jobBuilderFactory;
-        this.stepBuilderFactory = stepBuilderFactory;
-        this.jobResultListener = jobResultListener;
-        this.checkMemberTasklet = checkMemberTasklet;
-    }
-
-    @Bean
-    public Job job() {
-        Flow checkMember = new FlowBuilder<SimpleFlow>("CHECK_MEMBER")
-                .start(this.stepBuilderFactory.get("CheckMemberStep")
-                        .tasklet(checkMemberTasklet)
-                        .build())
-                .build();
-        */
-/**Flow readCsv = new FlowBuilder<SimpleFlow>("READ_CSV")
-                .start(this.stepBuilderFactory.get("ReadCsvStep")
-                        .tasklet(readCsvTasklet)
-                        .build())
-                .build();
-        Flow insertMember = new FlowBuilder<SimpleFlow>("INSERT_MEMBER")
-                .start(this.stepBuilderFactory.get("InsertMemberStep")
-                        .tasklet(insertMemberTasklet)
-                        .build())
-                .build();*//*
-
-
-        Flow insert_member_flow = new FlowBuilder<SimpleFlow>("INSERT_MEMBER_FLOW")
-                .start(checkMember)
-                //.next(readCsv)
-                //.next(insertMember)
-                .build();
-
-        return this.jobBuilderFactory.get("INSERT_MEMBER_JOB")
-                .incrementer(new RunIdIncrementer())
-                .start(insert_member_flow)
-                .build()
-                .listener(jobResultListener)
-                .build();
-    }
-}*/

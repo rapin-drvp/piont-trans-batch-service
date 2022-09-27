@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class JobRunner implements ApplicationRunner {
     @Autowired
-    private Job cardExpJob;
+    private Job insertPointTransJob;
 
     @Autowired
     private JobLauncher jobLauncher;
@@ -25,10 +25,10 @@ public class JobRunner implements ApplicationRunner {
         log.info("Job type JobRunner: {}", type);
         int status = 1;
         try {
-            this.jobLauncher.run(cardExpJob,
+            this.jobLauncher.run(insertPointTransJob,
                     new JobParametersBuilder()
                     .addString("TYPE", type)
-                   .toJobParameters());
+                    .toJobParameters());
 
         } catch (Exception e) {
             log.error("Job Runner Exception : ", e);
@@ -36,6 +36,4 @@ public class JobRunner implements ApplicationRunner {
         log.info("### EXIT STATUS [{}]", status);
         System.exit(status);
     }
-
-
 }
